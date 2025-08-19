@@ -1,5 +1,5 @@
 /* ai.js
-   Lightweight, explainable “AI model” simulation.
+   Lightweight, explainable “AI model” simulaion.
    Replace functions with real API calls later.
 */
 

@@ -4,7 +4,7 @@
 */
 
 const EcoAI = (() => {
-  // Simple dictionaries and heuristics to simulate model behavior.
+  // Simple dictionaries and heuristics to siulate model behavior.
   const edibleHints = [
     "apple","banana","bread","milk","oat","almond","soy","yogurt","cheese",
     "beef","chicken","tofu","bean","lentil","rice","pasta","chocolate",

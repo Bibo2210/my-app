@@ -1,10 +1,10 @@
 /* ai.js
-   Lightweight, explainable “AI model” simulaion.
+   Lightweight, explainable “AI model” simulation.
    Replace functions with real API calls later.
 */
 
 const EcoAI = (() => {
-  // Simple dictionaries and heuristics to siulate model behavior.
+  // Simple dictionaries and heuristics to simulate model behavior.
   const edibleHints = [
     "apple","banana","bread","milk","oat","almond","soy","yogurt","cheese",
     "beef","chicken","tofu","bean","lentil","rice","pasta","chocolate",
@@ -31,10 +31,20 @@ const EcoAI = (() => {
     chocolate:{kcal: 546,protein: 4.9, fat: 31,  carbs: 61, fiber: 7,  sodium: 24, calcium: 56,  iron: 8 }
   };
 
-   
+  function normalize(text){
+    return (text || "").toLowerCase();
+  }
+
+  function guessEdible(inputText, imageName){
+    const t = normalize(inputText + " " + imageName);
+    let hit = edibleHints.find(k => t.includes(k));
+    let confidence = hit ? 0.85 : 0.35;
+    if (t.includes("pet") || t.includes("bottle") || t.includes("plastic")) confidence = Math.min(confidence, 0.2);
+    return { edible: confidence > 0.5, confidence, signal: hit || null, explain: `Signal: ${hit || 'none'}` };
   }
 
   function detectMaterials(inputText){
+    const t = normalize(inputText);
     const found = [];
     for (const [mat, keys] of Object.entries(materialKeywords)){
       if (keys.some(k => t.includes(k))) found.push(mat);
@@ -136,6 +146,11 @@ const EcoAI = (() => {
     return tips.slice(0,4);
   }
 
+  function confidenceScore(isEdibleConfidence, hasImage){
+    let base = 0.6 + (hasImage ? 0.1 : 0);
+    base = Math.min(0.95, Math.max(0.4, (base + isEdibleConfidence)/2));
+    return Math.round(base*100)/100;
+  }
 
   function analyze({ text, imageName, location }){
     const edibleGuess = guessEdible(text || "", imageName || "");
@@ -143,13 +158,15 @@ const EcoAI = (() => {
     const eco = ecoAssessment(text || (imageName || ""));
     const alt = alternatives(text || "");
     const tips = personalizedTips(text || "", location || "");
+    const conf = confidenceScore(edibleGuess.confidence, !!imageName);
     const result = {
       input: { text, imageName, location },
-      edible: { isEdible},
+      edible: { isEdible, confidence: edibleGuess.confidence, explain: edibleGuess.explain },
       nutrition: isEdible ? estimateNutrition(text || "") : null,
       eco,
       alternatives: alt,
       tips,
+      overallConfidence: conf,
       timestamp: Date.now()
     };
     return result;

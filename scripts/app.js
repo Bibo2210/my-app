@@ -1,33 +1,32 @@
-// app.js - UI wiring, storage, and interactions
-
+// app.js - UI wiring, storage, and interactions (robust)
 (function(){
   const $ = s => document.querySelector(s);
-  const $$ = s => Array.from(document.querySelectorAll(s));
 
-  // Mobile nav toggle
+  // Mobile nav
   const navToggle = $('.nav-toggle');
   const nav = $('.site-nav');
-  if (navToggle && nav){
-    navToggle.addEventListener('click', ()=>{
-      const open = nav.classList.toggle('open');
-      navToggle.setAttribute('aria-expanded', String(open));
-    });
-  }
+  navToggle?.addEventListener('click', ()=>{
+    const open = nav.classList.toggle('open');
+    navToggle.setAttribute('aria-expanded', String(open));
+  });
 
-  // Quick scan (home)
+  // Quick scan
   const quickForm = $('#quickScanForm');
   const quickInput = $('#quickInput');
   const quickOut = $('#quickScanResult');
-
-  if (quickForm){
-    quickForm.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      const text = (quickInput.value || '').trim();
-      if (!text){ quickOut.innerHTML = '<div class="card">Please enter a product.</div>'; return; }
-      const res = EcoAI.analyze({ text });
+  quickForm?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const text = (quickInput?.value || '').trim();
+    if (!text){ quickOut.innerHTML = '<div class="card">Please enter a product.</div>'; return; }
+    quickOut.innerHTML = '<div class="card">Analyzing…</div>';
+    try {
+      const res = await EcoAI.analyze({ text });
       quickOut.innerHTML = renderResult(res);
-    });
-  }
+    } catch (err){
+      console.error(err);
+      quickOut.innerHTML = '<div class="card">Error analyzing. Please try again.</div>';
+    }
+  });
 
   // Scanner page
   const scanForm = $('#scanForm');
@@ -36,36 +35,39 @@
   const locationInput = $('#locationInput');
   const scanOutput = $('#scanOutput');
   const saveBtn = $('#saveResultBtn');
-
   let lastResult = null;
 
-  if (scanForm){
-    scanForm.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      const text = (textInput.value || '').trim();
-      const imageName = imageInput?.files?.[0]?.name || '';
-      const location = (locationInput?.value || '').trim();
+  scanForm?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const text = (textInput?.value || '').trim();
+    const file = imageInput?.files?.[0] || null;
+    const imageName = file?.name || '';
+    const location = (locationInput?.value || '').trim();
 
-      if (!text && !imageName){
-        scanOutput.innerHTML = '<div class="card">Add a photo or describe the product.</div>';
-        return;
-      }
-      const res = EcoAI.analyze({ text, imageName, location });
+    if (!text && !file){ scanOutput.innerHTML = '<div class="card">Add a photo or describe the product.</div>'; return; }
+
+    scanOutput.innerHTML = '<div class="card">Analyzing…</div>';
+
+    try {
+      const res = await EcoAI.analyze({ text, imageName, location });
       lastResult = res;
       scanOutput.innerHTML = renderResult(res, true);
       saveBtn.disabled = false;
-    });
+    } catch (err){
+      console.error(err);
+      scanOutput.innerHTML = '<div class="card">Error analyzing. Please try again.</div>';
+    }
+  });
 
-    saveBtn?.addEventListener('click', ()=>{
-      if (!lastResult) return;
-      const history = JSON.parse(localStorage.getItem('ecoreveal_history') || '[]');
-      history.unshift(lastResult);
-      localStorage.setItem('ecoreveal_history', JSON.stringify(history.slice(0,100)));
-      saveBtn.textContent = 'Saved!';
-      saveBtn.disabled = true;
-      setTimeout(()=>{ saveBtn.textContent = 'Save to History'; }, 1500);
-    });
-  }
+  saveBtn?.addEventListener('click', ()=>{
+    if (!lastResult) return;
+    const history = JSON.parse(localStorage.getItem('ecoreveal_history') || '[]');
+    history.unshift(lastResult);
+    localStorage.setItem('ecoreveal_history', JSON.stringify(history.slice(0,100)));
+    saveBtn.textContent = 'Saved!';
+    saveBtn.disabled = true;
+    setTimeout(()=>{ saveBtn.textContent = 'Save to History'; }, 1500);
+  });
 
   // History page
   const historyList = $('#historyList');
@@ -78,26 +80,21 @@
       const data = localStorage.getItem('ecoreveal_history') || '[]';
       const blob = new Blob([data], {type:'application/json'});
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'ecoreveal-history.json';
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
+      const a = document.createElement('a'); a.href = url; a.download = 'ecoreveal-history.json';
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     });
     clearBtn?.addEventListener('click', ()=>{
       if (confirm('Clear all history on this device?')){
-        localStorage.removeItem('ecoreveal_history');
-        renderHistory();
+        localStorage.removeItem('ecoreveal_history'); renderHistory();
       }
     });
   }
 
   function renderHistory(){
+    const list = $('#historyList');
     const history = JSON.parse(localStorage.getItem('ecoreveal_history') || '[]');
-    if (!history.length){
-      historyList.innerHTML = '<div class="card">No scans yet.</div>';
-      return;
-    }
-    historyList.innerHTML = history.map(item => `
+    if (!history.length){ list.innerHTML = '<div class="card">No scans yet.</div>'; return; }
+    list.innerHTML = history.map(item => `
       <div class="history-item">
         <div class="meta-row">
           <span class="kv"><strong>Date:</strong> ${new Date(item.timestamp).toLocaleString()}</span>
@@ -113,37 +110,29 @@
   const altForm = $('#altForm');
   const altInput = $('#altInput');
   const altOutput = $('#altOutput');
-  if (altForm){
-    altForm.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      const text = (altInput.value || '').trim();
-      if (!text){ altOutput.innerHTML = '<div class="card">Enter a product category.</div>'; return; }
-      const res = EcoAI.analyze({ text });
-      altOutput.innerHTML = `
-        ${renderResult(res)}
-        <div class="card section">
-          <h3>Why these alternatives?</h3>
-          <p>${EcoAI.explain(res)}</p>
-        </div>
-      `;
-    });
-  }
+  altForm?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const text = (altInput?.value || '').trim();
+    if (!text){ altOutput.innerHTML = '<div class="card">Enter a product category.</div>'; return; }
+    altOutput.innerHTML = '<div class="card">Analyzing…</div>';
+    try {
+      const res = await EcoAI.analyze({ text });
+      altOutput.innerHTML = `${renderResult(res)}<div class="card section"><h3>Why these alternatives?</h3><p>${EcoAI.explain(res)}</p></div>`;
+    } catch (err){
+      console.error(err);
+      altOutput.innerHTML = '<div class="card">Error analyzing. Please try again.</div>';
+    }
+  });
 
   // Contact form
   const contactForm = $('#contactForm');
   const contactStatus = $('#contactStatus');
-  if (contactForm){
-    contactForm.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      contactStatus.textContent = 'Sending...';
-      setTimeout(()=>{
-        contactStatus.textContent = 'Thanks! We will get back to you shortly.';
-        contactForm.reset();
-      }, 600);
-    });
-  }
+  contactForm?.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    contactStatus.textContent = 'Sending...';
+    setTimeout(()=>{ contactStatus.textContent = 'Thanks! We will get back to you shortly.'; contactForm.reset(); }, 600);
+  });
 
-  // Render result helper
   function renderResult(res, detailed){
     const nut = res.nutrition ? `
       <div class="section">
@@ -159,8 +148,7 @@
           <span class="kv">Iron: ${res.nutrition.values.iron_mg} mg</span>
         </div>
         <p><em>${res.nutrition.assumptions}</em></p>
-      </div>
-    ` : '';
+      </div>` : '';
 
     const eco = `
       <div class="section">
@@ -171,29 +159,25 @@
           <span class="kv">Recyclable: ${res.eco.recyclable ? 'Likely' : 'Uncertain'}</span>
         </div>
         ${res.eco.guidance.length ? `<ul>${res.eco.guidance.map(g=>`<li>${g}</li>`).join('')}</ul>`:''}
-      </div>
-    `;
+      </div>`;
 
     const alt = `
       <div class="section">
         <h3>Greener Alternatives</h3>
         <ul>${res.alternatives.map(a=>`<li><strong>${a.item}:</strong> ${a.why}</li>`).join('')}</ul>
-      </div>
-    `;
+      </div>`;
 
     const tips = `
       <div class="section">
         <h3>Personalized Tips</h3>
         <ul>${res.tips.map(t=>`<li>${t}</li>`).join('')}</ul>
-      </div>
-    `;
+      </div>`;
 
     const expl = detailed ? `
       <div class="section">
         <h3>Model Explanation</h3>
         <p>${EcoAI.explain(res)}</p>
-      </div>
-    ` : '';
+      </div>` : '';
 
     return `
       <div class="card">
@@ -202,12 +186,7 @@
           <span class="kv"><strong>Edible confidence:</strong> ${res.edible.confidence}</span>
           <span class="kv"><strong>Overall confidence:</strong> ${res.overallConfidence}</span>
         </div>
-        ${nut}
-        ${eco}
-        ${alt}
-        ${tips}
-        ${expl}
-      </div>
-    `;
+        ${nut}${eco}${alt}${tips}${expl}
+      </div>`;
   }
 })();
